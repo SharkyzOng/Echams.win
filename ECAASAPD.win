@@ -1,6 +1,6 @@
 --[[ 
     EAM Hub Script for Project Delta
-    Features: ESP, Aim Assist, Health Bars, Smooth Aim, RGB Neon Chams
+    Features: ESP, Aim Assist, Health Bars, Smooth Aim, RGB Neon Chams, Snapline to Target
 ]]
 
 -- Services
@@ -10,15 +10,16 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
--- Configuration
+-- Configuration Settings
 local ESPSettings = {
-    BoxColor = Color3.new(1, 0, 0),
-    HealthBarColor = Color3.new(0, 1, 0),
-    Transparency = 0.7,
-    MaxDistance = 10000,
-    ShowBoxes = true,
-    ShowHealth = true,
-    UseNeonChams = true,
+    BoxColor = Color3.new(1, 0, 0),             -- Color for ESP boxes
+    HealthBarColor = Color3.new(0, 1, 0),      -- Color for health bars
+    SnaplineColor = Color3.new(0, 0, 1),        -- Color for snapline
+    Transparency = 0.7,                         -- Transparency for ESP elements
+    MaxDistance = 10000,                        -- Maximum distance for ESP
+    ShowBoxes = true,                           -- Toggle for ESP boxes
+    ShowHealth = true,                          -- Toggle for health bars
+    UseNeonChams = true,                        -- Toggle for Neon Chams
 }
 
 -- State Variables
@@ -28,8 +29,9 @@ local espEnabled = true
 local aimSpeed = 0.1
 local fovRadius = 120
 local crosshairSize = 10
+local targetMethod = "Nearest"  -- Options: "Nearest", "Lowest Health", "Closest in FOV"
 
--- GUI Setup
+-- GUI Setup Function
 local function setupGUI()
     local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
     local mainFrame = Instance.new("Frame", screenGui)
@@ -39,7 +41,7 @@ local function setupGUI()
     mainFrame.BorderSizePixel = 0
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 
-    -- Title
+    -- Title Label
     local titleLabel = Instance.new("TextLabel", mainFrame)
     titleLabel.Size = UDim2.new(1, 0, 0, 40)
     titleLabel.Text = "EAM Hub"
@@ -50,29 +52,28 @@ local function setupGUI()
     titleLabel.BorderSizePixel = 0
 
     -- FOV Circle
-    local FOVCircle = Instance.new("Frame")
+    local FOVCircle = Instance.new("Frame", screenGui)
     FOVCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
     FOVCircle.Position = UDim2.new(0.5, -fovRadius, 0.5, -fovRadius)
     FOVCircle.BackgroundColor3 = Color3.new(1, 1, 1)
     FOVCircle.BackgroundTransparency = 0.5
     FOVCircle.BorderSizePixel = 0
     FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-    FOVCircle.Parent = screenGui
 
     -- Crosshair
-    local crosshair = Instance.new("Frame")
+    local crosshair = Instance.new("Frame", screenGui)
     crosshair.Size = UDim2.new(0, crosshairSize, 0, crosshairSize)
     crosshair.BackgroundColor3 = Color3.new(1, 0, 0)
     crosshair.Position = UDim2.new(0.5, -crosshairSize / 2, 0.5, -crosshairSize / 2)
     crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
-    crosshair.Parent = screenGui
 
-    return mainFrame
+    return mainFrame, FOVCircle, crosshair
 end
 
--- Dragging Functionality
+-- Function for Draggable GUI
 local function setupDragging(mainFrame)
-    local isDragging, dragStart, startPos
+    local isDragging = false
+    local dragStart, startPos
 
     local function onInputBegan(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -93,7 +94,7 @@ local function setupDragging(mainFrame)
     UserInputService.InputChanged:Connect(onInputChanged)
 end
 
--- GUI Component Creation Functions
+-- Create Button in GUI
 local function createButton(mainFrame, labelText, positionY, callback)
     local button = Instance.new("TextButton", mainFrame)
     button.Size = UDim2.new(0.9, 0, 0, 40)
@@ -112,6 +113,7 @@ local function createButton(mainFrame, labelText, positionY, callback)
     end)
 end
 
+-- Create Slider in GUI
 local function createSlider(mainFrame, labelText, positionY, minValue, maxValue, defaultValue, setter)
     local label = Instance.new("TextLabel", mainFrame)
     label.Size = UDim2.new(1, 0, 0, 30)
@@ -142,19 +144,60 @@ local function createSlider(mainFrame, labelText, positionY, minValue, maxValue,
     end)
 end
 
--- Notification System
+-- Create Dropdown Menu in GUI
+local function createDropdown(mainFrame, labelText, positionY, options, setter)
+    local label = Instance.new("TextLabel", mainFrame)
+    label.Size = UDim2.new(1, 0, 0, 30)
+    label.Position = UDim2.new(0, 10, 0, positionY)
+    label.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Text = labelText
+
+    local dropdown = Instance.new("TextButton", mainFrame)
+    dropdown.Size = UDim2.new(1, 0, 0, 30)
+    dropdown.Position = UDim2.new(0, 0, 0, positionY + 30)
+    dropdown.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    dropdown.TextColor3 = Color3.new(1, 1, 1)
+    dropdown.Text = options[1]
+    dropdown.TextSize = 18
+
+    local optionList = Instance.new("Frame", mainFrame)
+    optionList.Size = UDim2.new(1, 0, 0, 0)
+    optionList.Position = UDim2.new(0, 0, 0, positionY + 60)
+    optionList.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    optionList.Visible = false
+
+    for _, option in ipairs(options) do
+        local optionButton = Instance.new("TextButton", optionList)
+        optionButton.Size = UDim2.new(1, 0, 0, 30)
+        optionButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        optionButton.Text = option
+        optionButton.TextColor3 = Color3.new(1, 1, 1)
+
+        optionButton.MouseButton1Click:Connect(function()
+            dropdown.Text = option
+            setter(option)
+            optionList.Visible = false
+        end)
+    end
+
+    dropdown.MouseButton1Click:Connect(function()
+        optionList.Visible = not optionList.Visible
+    end)
+end
+
+-- Notify Function for Notifications
 local function notify(message)
-    local notification = Instance.new("TextLabel", LocalPlayer:WaitForChild("PlayerGui"))
-    notification.Size = UDim2.new(0, 200, 0, 50)
-    notification.Position = UDim2.new(0.5, -100, 0.1, 0)
+    local notification = Instance.new("TextLabel", CoreGui)
+    notification.Size = UDim2.new(0.3, 0, 0, 50)
+    notification.Position = UDim2.new(0.5, -75, 0.9, 0)
     notification.BackgroundColor3 = Color3.new(0, 0, 0)
     notification.TextColor3 = Color3.new(1, 1, 1)
     notification.Text = message
-    notification.TextScaled = true
-    notification.BackgroundTransparency = 0.5
-    notification.Visible = true
+    notification.TextSize = 20
+    notification.BorderSizePixel = 0
 
-    wait(2)
+    wait(2)  -- Display for 2 seconds
     notification:Destroy()
 end
 
@@ -162,6 +205,7 @@ end
 local ESP = {}
 ESP.__index = ESP
 
+-- Constructor
 function ESP.new(player)
     local self = setmetatable({}, ESP)
     self.player = player
@@ -175,10 +219,11 @@ function ESP.new(player)
     return self
 end
 
+-- Initialize ESP for the player
 function ESP:initialize()
     if not self.player.Character or not self.player.Character:FindFirstChild("HumanoidRootPart") then return end
 
-    -- Create ESP Box
+    -- Create ESP Box if enabled
     if ESPSettings.ShowBoxes then
         local espBox = Instance.new("BoxHandleAdornment")
         espBox.Size = Vector3.new(2, 5, 2)
@@ -190,14 +235,14 @@ function ESP:initialize()
         table.insert(self.espBoxes, espBox)
     end
 
-    -- Health Bar Setup
+    -- Setup Health Bar
     if ESPSettings.ShowHealth then
         self.healthBar.Size = UDim2.new(0, 50, 0, 5)
         self.healthBar.BackgroundColor3 = ESPSettings.HealthBarColor
         self.healthBar.Parent = CoreGui
     end
 
-    -- Name and Distance Labels
+    -- Setup Name and Distance Labels
     self.nameLabel.Size = UDim2.new(0, 100, 0, 20)
     self.nameLabel.BackgroundTransparency = 1
     self.nameLabel.TextColor3 = Color3.new(1, 1, 1)
@@ -208,15 +253,16 @@ function ESP:initialize()
     self.distanceLabel.TextColor3 = Color3.new(1, 1, 1)
     self.distanceLabel.Parent = CoreGui
 
-    -- Create Neon Chams
+    -- Create Neon Chams if enabled
     if ESPSettings.UseNeonChams then
         self:createNeonChams()
     end
 
-    -- Update ESP on position change
+    -- Update ESP when player moves
     self:updateESPConnection()
 end
 
+-- Create Neon Chams for the player
 function ESP:createNeonChams()
     for _, part in pairs(self.player.Character:GetChildren()) do
         if part:IsA("BasePart") then
@@ -230,24 +276,27 @@ function ESP:createNeonChams()
     end
 end
 
+-- Update ESP on player movement
 function ESP:updateESPConnection()
     self.player.Character.HumanoidRootPart:GetPropertyChangedSignal("CFrame"):Connect(function() self:updateESP() end)
 end
 
+-- Update ESP elements
 function ESP:updateESP()
     if self.player.Character and self.player.Character:FindFirstChild("HumanoidRootPart") then
         local rootPart = self.player.Character.HumanoidRootPart
         self.nameLabel.Position = UDim2.new(0, rootPart.Position.X, 0, rootPart.Position.Y + 3)
         self.distanceLabel.Position = UDim2.new(0, rootPart.Position.X, 0, rootPart.Position.Y + 8)
 
+        -- Calculate and display distance
         local distance = (rootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
         self.distanceLabel.Text = "Distance: " .. string.format("%.2f", distance)
 
-        -- Update Health Bar
+        -- Update Health Bar if enabled
         if ESPSettings.ShowHealth then
             local humanoid = self.player.Character:FindFirstChildOfClass("Humanoid")
             if humanoid then
-                local healthPercentage = humanoid.Health / 100
+                local healthPercentage = humanoid.Health / humanoid.MaxHealth
                 self.healthBar.Size = UDim2.new(0, 50 * healthPercentage, 0, 5)
                 self.healthBar.Position = UDim2.new(0, rootPart.Position.X - 25, 0, rootPart.Position.Y + 15)
             end
@@ -255,6 +304,7 @@ function ESP:updateESP()
     end
 end
 
+-- Clean up ESP when done
 function ESP:destroy()
     for _, box in ipairs(self.espBoxes) do box:Destroy() end
     for _, cham in ipairs(self.chamParts) do cham:Destroy() end
@@ -266,6 +316,32 @@ end
 -- Manage ESP Instances
 local espInstances = {}
 
+-- Find Closest Player within FOV
+local function findClosestPlayerInFOV()
+    local closestPlayer = nil
+    local closestDistance = fovRadius
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local rootPart = player.Character.HumanoidRootPart
+            local screenPosition, onScreen = workspace.CurrentCamera:WorldToScreenPoint(rootPart.Position)
+
+            if onScreen then
+                local mousePos = UserInputService:GetMouseLocation()
+                local distanceFromCenter = (Vector2.new(mousePos.X, mousePos.Y) - Vector2.new(screenPosition.X, screenPosition.Y)).Magnitude
+
+                if distanceFromCenter < closestDistance then
+                    closestDistance = distanceFromCenter
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- Update ESP for all players
 local function updateESP()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and espEnabled then
@@ -280,34 +356,61 @@ local function updateESP()
     end
 end
 
--- Main Loop
-RunService.RenderStepped:Connect(updateESP)
+-- Snapline Drawing
+local function drawSnapline(targetPlayer)
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local rootPart = targetPlayer.Character.HumanoidRootPart
+        local screenPosition, onScreen = workspace.CurrentCamera:WorldToScreenPoint(rootPart.Position)
 
--- Load and Save Settings (Placeholders)
-local function loadSettings()
-    aimAssistEnabled = false
-    silentAimEnabled = false
-    espEnabled = true
+        if onScreen then
+            local line = Instance.new("Line", CoreGui)
+            line.From = Vector3.new(0, 0, 0)
+            line.To = rootPart.Position
+            line.Color = ESPSettings.SnaplineColor
+            line.Thickness = 2
+            line.ZIndex = 5
+            line.CFrame = CFrame.new(Vector3.new(0, 0, 0), rootPart.Position)
+        end
+    end
 end
 
-local function saveSettings()
-    local settingsToSave = {
-        aimAssistEnabled = aimAssistEnabled,
-        silentAimEnabled = silentAimEnabled,
-        espEnabled = espEnabled,
-    }
-    -- Add logic to save settings here
-end
+-- Main Loop for ESP and Targeting Updates
+RunService.RenderStepped:Connect(function()
+    updateESP()
+    
+    if aimAssistEnabled then
+        local targetPlayer = findClosestPlayerInFOV()
+        if targetPlayer then
+            drawSnapline(targetPlayer)
 
--- Initialize GUI and Load Settings
-local mainFrame = setupGUI()
+            -- Aim towards target (implement smooth aiming logic here)
+            local rootPart = targetPlayer.Character.HumanoidRootPart
+            local camera = workspace.CurrentCamera
+            local targetPos = rootPart.Position
+
+            local smoothness = aimSpeed
+            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos) -- Modify for smooth aim
+        end
+    end
+end)
+
+-- Initialize GUI
+local mainFrame, FOVCircle, crosshair = setupGUI()
 setupDragging(mainFrame)
 
--- Create GUI Controls
-createButton(mainFrame, "Toggle Aim Assist", 50, function() aimAssistEnabled = not aimAssistEnabled end)
-createButton(mainFrame, "Toggle Silent Aim", 100, function() silentAimEnabled = not silentAimEnabled end)
-createButton(mainFrame, "Toggle ESP", 150, function() espEnabled = not espEnabled end)
-createSlider(mainFrame, "Aim Speed", 200, 0, 1, aimSpeed, function(value) aimSpeed = value end)
+-- Create Buttons and Sliders
+createButton(mainFrame, "Toggle ESP", 50, function() espEnabled = not espEnabled end)
+createButton(mainFrame, "Toggle Aim Assist", 100, function() aimAssistEnabled = not aimAssistEnabled end)
+createButton(mainFrame, "Toggle Silent Aim", 150, function() silentAimEnabled = not silentAimEnabled end)
+createSlider(mainFrame, "Aim Speed", 200, 0.01, 1, aimSpeed, function(value) aimSpeed = value end)
+createDropdown(mainFrame, "Target Method", 250, {"Nearest", "Lowest Health", "Closest in FOV"}, function(value) targetMethod = value end)
 
--- Load Settings
-loadSettings()
+-- Cleanup on exit
+game:BindToClose(function()
+    for _, espInstance in pairs(espInstances) do
+        espInstance:destroy()
+    end
+end)
+
+
+
