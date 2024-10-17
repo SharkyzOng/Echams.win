@@ -1,0 +1,154 @@
+1. Setup GUI Function Update
+Replace your existing setupGUI function with this enhanced version:
+
+lua
+Copy code
+-- GUI Setup Function
+local function setupGUI()
+	local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+	local mainFrame = Instance.new("Frame", screenGui)
+	mainFrame.Size = UDim2.new(0.35, 0, 0.6, 0)
+	mainFrame.Position = UDim2.new(0.05, 0, 0.05, 0)
+	mainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+	mainFrame.BorderSizePixel = 0
+	Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+
+	-- Title Label
+	local titleLabel = Instance.new("TextLabel", mainFrame)
+	titleLabel.Size = UDim2.new(1, 0, 0, 40)
+	titleLabel.Text = "EAM Hub"
+	titleLabel.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+	titleLabel.TextColor3 = Color3.new(1, 1, 1)
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 24
+	titleLabel.BorderSizePixel = 0
+	titleLabel.TextScaled = true
+
+	return mainFrame
+end
+2. Create Button Function Update
+Replace your existing createButton function with this:
+
+lua
+Copy code
+-- Create Button in GUI
+local function createButton(mainFrame, labelText, positionY, callback)
+	local button = Instance.new("TextButton", mainFrame)
+	button.Size = UDim2.new(0.9, 0, 0, 40)
+	button.Position = UDim2.new(0.05, 0, 0, positionY)
+	button.Text = labelText
+	button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Font = Enum.Font.Gotham
+	button.TextSize = 20
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = false
+	Instance.new("UICorner", button).CornerRadius = UDim.new(0, 5)
+
+	button.MouseButton1Click:Connect(function()
+		callback()
+	end)
+end
+3. Create Slider Function Update
+Replace your existing createSlider function with this:
+
+lua
+Copy code
+-- Create Slider in GUI
+local function createSlider(mainFrame, labelText, positionY, minValue, maxValue, defaultValue, setter)
+	local label = Instance.new("TextLabel", mainFrame)
+	label.Size = UDim2.new(1, 0, 0, 30)
+	label.Position = UDim2.new(0, 10, 0, positionY)
+	label.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.Text = labelText .. ": " .. tostring(defaultValue)
+
+	local slider = Instance.new("Frame", mainFrame)
+	slider.Size = UDim2.new(1, 0, 0, 10)
+	slider.Position = UDim2.new(0, 0, 0, positionY + 30)
+	slider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	slider.Active = true
+	slider.Selectable = true
+
+	local sliderBar = Instance.new("Frame", slider)
+	sliderBar.Size = UDim2.new((defaultValue - minValue) / (maxValue - minValue), 0, 1, 0)
+	sliderBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+
+	local function updateSlider(mouseX)
+		local newValue = math.clamp(mouseX - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+		local value = (newValue / slider.AbsoluteSize.X) * (maxValue - minValue) + minValue
+		sliderBar.Size = UDim2.new((value - minValue) / (maxValue - minValue), 0, 1, 0)
+		label.Text = labelText .. ": " .. string.format("%.2f", value)
+		setter(value)
+	end
+
+	slider.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			updateSlider(LocalPlayer:GetMouse().X)
+
+			local connection
+			connection = UserInputService.InputChanged:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseMovement then
+					updateSlider(input.Position.X)
+				end
+			end)
+
+			UserInputService.InputEnded:Wait()
+			connection:Disconnect()
+		end
+	end)
+end
+4. Create Dropdown Function Update
+Replace your existing createDropdown function with this:
+
+lua
+Copy code
+-- Create Dropdown Menu in GUI
+local function createDropdown(mainFrame, labelText, positionY, options, setter)
+	local label = Instance.new("TextLabel", mainFrame)
+	label.Size = UDim2.new(1, 0, 0, 30)
+	label.Position = UDim2.new(0, 10, 0, positionY)
+	label.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.Text = labelText
+
+	local dropdown = Instance.new("TextButton", mainFrame)
+	dropdown.Size = UDim2.new(1, 0, 0, 30)
+	dropdown.Position = UDim2.new(0, 0, 0, positionY + 30)
+	dropdown.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	dropdown.TextColor3 = Color3.new(1, 1, 1)
+	dropdown.Text = options[1]
+	dropdown.TextSize = 18
+	Instance.new("UICorner", dropdown).CornerRadius = UDim.new(0, 5)
+
+	local optionList = Instance.new("Frame", mainFrame)
+	optionList.Size = UDim2.new(1, 0, 0, 0)
+	optionList.Position = UDim2.new(0, 0, 0, positionY + 60)
+	optionList.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	optionList.Visible = false
+
+	for _, option in ipairs(options) do
+		local optionButton = Instance.new("TextButton", optionList)
+		optionButton.Size = UDim2.new(1, 0, 0, 30)
+		optionButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+		optionButton.Text = option
+		optionButton.TextColor3 = Color3.new(1, 1, 1)
+		Instance.new("UICorner", optionButton).CornerRadius = UDim.new(0, 5)
+
+		optionButton.MouseButton1Click:Connect(function()
+			dropdown.Text = option
+			setter(option)
+			optionList.Visible = false
+		end)
+	end
+
+	dropdown.MouseButton1Click:Connect(function()
+		optionList.Visible = not optionList.Visible
+	end)
+end
+Where to Place Each Snippet:
+Setup GUI Function Update: Replace the entire setupGUI function.
+Create Button Function Update: Replace the existing createButton function.
+Create Slider Function Update: Replace the existing createSlider function.
+Create Dropdown Function Update: Replace the existing createDropdown function.
+These changes will enhance the look and feel of your GUI, making it more modern and user-friendly. Let me know if you need any more help!
