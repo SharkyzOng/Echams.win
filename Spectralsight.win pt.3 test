@@ -1,0 +1,234 @@
+-- SpectralSight.win
+-- Made by Sharkyz
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+-- ESP Class Definition
+local ESP = {}
+ESP.__index = ESP
+
+-- Constants
+local MAX_DISTANCE = 4000
+
+-- Default Color Settings
+local colorSettings = {
+    ally = Color3.new(0, 1, 0), -- Green for allies
+    enemy = Color3.new(1, 0, 0), -- Red for enemies
+    neutral = Color3.new(1, 1, 0), -- Yellow for neutral players
+    healthLow = Color3.new(1, 0, 0), -- Red for low health
+    healthHigh = Color3.new(0, 1, 0) -- Green for healthy
+}
+
+-- Constructor
+function ESP.new(player)
+    local self = setmetatable({}, ESP)
+    self.player = player
+    self.lines = {}
+    self.healthBar = nil
+    self.nameLabel = nil
+    self.distanceLabel = nil
+    self.toggleButton = nil
+    self.espStateLabel = nil
+    self.espEnabled = true -- State of ESP
+    self:setupUI()
+    return self
+end
+
+-- Setup UI elements for ESP
+function ESP:setupUI()
+    -- Name Label
+    self.nameLabel = Instance.new("TextLabel", CoreGui)
+    self.nameLabel.BackgroundTransparency = 1
+    self.nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    self.nameLabel.Size = UDim2.new(0, 100, 0, 20)
+
+    -- Health Bar Frame
+    local healthBarFrame = Instance.new("Frame", CoreGui)
+    healthBarFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    healthBarFrame.Size = UDim2.new(0, 52, 0, 7)
+    healthBarFrame.Position = UDim2.new(0.5, -26, 0, 20) -- Centered
+
+    -- Health Bar
+    self.healthBar = Instance.new("Frame", healthBarFrame)
+    self.healthBar.BackgroundColor3 = colorSettings.healthHigh
+    self.healthBar.Size = UDim2.new(1, 0, 1, 0) -- Full size of frame
+
+    -- ESP Toggle Button
+    self.toggleButton = Instance.new("TextButton", CoreGui)
+    self.toggleButton.BackgroundColor3 = Color3.new(0, 0, 0)
+    self.toggleButton.TextColor3 = Color3.new(1, 1, 1)
+    self.toggleButton.Size = UDim2.new(0, 100, 0, 50)
+    self.toggleButton.Position = UDim2.new(1, -110, 0, 10)
+    self.toggleButton.Text = "Toggle ESP"
+    self.toggleButton.MouseButton1Click:Connect(function() self:toggleESP() end)
+
+    -- ESP State Indicator
+    self.espStateLabel = Instance.new("TextLabel", CoreGui)
+    self.espStateLabel.BackgroundTransparency = 1
+    self.espStateLabel.TextColor3 = Color3.new(1, 1, 1)
+    self.espStateLabel.Size = UDim2.new(0, 100, 0, 20)
+    self.espStateLabel.Position = UDim2.new(1, -110, 0, 70)
+    self.espStateLabel.Text = "ESP: On"
+end
+
+-- Toggle ESP on/off
+function ESP:toggleESP()
+    self.espEnabled = not self.espEnabled
+    self.espStateLabel.Text = "ESP: " .. (self.espEnabled and "On" or "Off")
+    self.toggleButton.BackgroundColor3 = self.espEnabled and Color3.new(0, 0, 0) or Color3.new(0.5, 0.5, 0.5) -- Change color based on state
+end
+
+-- Draw the skeleton ESP
+function ESP:drawSkeleton()
+    if not self.espEnabled then return end
+
+    local character = self.player.Character
+    if not character then return end
+
+    -- Update existing lines
+    local connections = {
+        {character:FindFirstChild("Head"), character:FindFirstChild("Torso")},
+        {character:FindFirstChild("Torso"), character:FindFirstChild("Left Arm")},
+        {character:FindFirstChild("Torso"), character:FindFirstChild("Right Arm")},
+        {character:FindFirstChild("Torso"), character:FindFirstChild("Left Leg")},
+        {character:FindFirstChild("Torso"), character:FindFirstChild("Right Leg")},
+    }
+
+    for index, connection in ipairs(connections) do
+        local part1, part2 = connection[1], connection[2]
+        if part1 and part2 then
+            if not self.lines[index] then
+                self.lines[index] = Instance.new("Line", CoreGui)
+                self.lines[index].Thickness = 2
+                self.lines[index].ZIndex = 5
+            end
+            self.lines[index].From = part1.Position
+            self.lines[index].To = part2.Position
+            self.lines[index].Color = self:getPlayerColor(character) -- Set color based on player state
+        end
+    end
+
+    -- Clean up excess lines
+    for i = #connections + 1, #self.lines do
+        self.lines[i]:Destroy()
+        table.remove(self.lines, i)
+    end
+end
+
+-- Get player color based on health
+function ESP:getPlayerColor(character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if humanoid.Health <= 0 then
+            return Color3.new(0.5, 0.5, 0.5) -- Grey for dead players
+        elseif humanoid.Health < humanoid.MaxHealth / 2 then
+            return colorSettings.healthLow -- Red for low health
+        else
+            return colorSettings.ally -- Green for healthy
+        end
+    end
+    return colorSettings.neutral -- Default color
+end
+
+-- Update ESP
+function ESP:updateESP()
+    if not self.espEnabled then return end
+
+    if self.player.Character and self.player.Character:FindFirstChild("HumanoidRootPart") then
+        local localPlayer = Players.LocalPlayer
+        local distance = (self.player.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
+
+        if distance <= MAX_DISTANCE then
+            self:drawSkeleton()    -- Draw skeleton lines
+            self:updateHealthBar()  -- Update health bar
+            self:updateNameLabel()  -- Update name label
+            self:updateDistanceLabel(distance) -- Update distance label
+        end
+    end
+end
+
+-- Update the health bar based on the player's health
+function ESP:updateHealthBar()
+    local humanoid = self.player.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        local healthPercentage = humanoid.Health / humanoid.MaxHealth
+        self.healthBar.Size = UDim2.new(0, 50 * healthPercentage, 1, 0) -- Resize based on health
+        self.healthBar.BackgroundColor3 = healthPercentage < 0.5 and colorSettings.healthLow or colorSettings.healthHigh -- Change color based on health
+    end
+end
+
+-- Update the name label to display the player's name
+function ESP:updateNameLabel()
+    if self.player.Character and self.player.Character:FindFirstChild("HumanoidRootPart") then
+        local rootPart = self.player.Character.HumanoidRootPart
+        local screenPosition = workspace.CurrentCamera:WorldToScreenPoint(rootPart.Position)
+        self.nameLabel.Position = UDim2.new(0, screenPosition.X - 50, 0, screenPosition.Y - 40)
+        self.nameLabel.Text = self.player.Name
+    end
+end
+
+-- Update the distance label
+function ESP:updateDistanceLabel(distance)
+    if self.player.Character and self.player.Character:FindFirstChild("HumanoidRootPart") then
+        local rootPart = self.player.Character.HumanoidRootPart
+        local screenPosition = workspace.CurrentCamera:WorldToScreenPoint(rootPart.Position)
+
+        if not self.distanceLabel then
+            self.distanceLabel = Instance.new("TextLabel", CoreGui)
+            self.distanceLabel.BackgroundTransparency = 1
+            self.distanceLabel.TextColor3 = Color3.new(1, 1, 1)
+            self.distanceLabel.Size = UDim2.new(0, 100, 0, 20)
+        end
+
+        self.distanceLabel.Position = UDim2.new(0, screenPosition.X - 50, 0, screenPosition.Y - 20)
+        self.distanceLabel.Text = string.format("Distance: %.1f", distance)
+    end
+end
+
+-- Clean up ESP
+function ESP:destroy()
+    for _, line in ipairs(self.lines) do
+        line:Destroy()
+    end
+    if self.healthBar then self.healthBar:Destroy() end
+    if self.nameLabel then self.nameLabel:Destroy() end
+    if self.toggleButton then self.toggleButton:Destroy() end
+    if self.espStateLabel then self.espStateLabel:Destroy() end
+    if self.distanceLabel then self.distanceLabel:Destroy() end
+end
+
+-- Manage ESP Instances
+local espInstances = {}
+
+-- Main Loop for ESP Updates
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer then
+            if not espInstances[player] then
+                espInstances[player] = ESP.new(player)
+            end
+            espInstances[player]:updateESP()
+        else
+            if espInstances[player] then
+                espInstances[player]:destroy()
+                espInstances[player] = nil
+            end
+        end
+    end
+end)
+
+-- Listen for AncestryChanged event for cleanup when player is removed
+local localPlayer = Players.LocalPlayer
+localPlayer.AncestryChanged:Connect(function()
+    if not localPlayer.Parent then  -- Check if player is removed from the game
+        for _, espInstance in pairs(espInstances) do
+            if espInstance and espInstance.destroy then
+                espInstance:destroy()
+            end
+        end
+        espInstances = {} -- Clear the instances
+    end
+end)
