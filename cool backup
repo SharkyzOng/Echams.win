@@ -31,6 +31,11 @@ local fovRadius = 100
 local crosshairSize = 10
 local targetMethod = "Nearest"  -- Options: "Nearest", "Lowest Health", "Closest in FOV"
 
+-- Debugging function
+local function debugLog(message)
+	print("[DEBUG]: " .. message)
+end
+
 -- GUI Setup Function
 local function setupGUI()
 	local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
@@ -51,27 +56,18 @@ local function setupGUI()
 	titleLabel.TextSize = 24
 	titleLabel.BorderSizePixel = 0
 
-	-- FOV Circle
-	local FOVCircle = Instance.new("Frame", screenGui)
-	FOVCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
-	FOVCircle.Position = UDim2.new(0.5, -fovRadius, 0.5, -fovRadius)
-	FOVCircle.BackgroundColor3 = Color3.new(1, 1, 1)
-	FOVCircle.BackgroundTransparency = 0.5
-	FOVCircle.BorderSizePixel = 0
-	FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-
-	-- Crosshair
-	local crosshair = Instance.new("Frame", screenGui)
-	crosshair.Size = UDim2.new(0, crosshairSize, 0, crosshairSize)
-	crosshair.BackgroundColor3 = Color3.new(1, 0, 0)
-	crosshair.Position = UDim2.new(0.5, -crosshairSize / 2, 0.5, -crosshairSize / 2)
-	crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
-
-	return mainFrame, FOVCircle, crosshair
 end
 
 -- Function for Draggable GUI
 local function setupDragging(mainFrame)
+	if not mainFrame then
+		warn("mainFrame is nil!")  -- Debug message for nil mainFrame
+		return
+	end
+	
+		-- Call setupDragging and pass mainFrame
+		setupDragging(mainFrame)
+
 	local isDragging = false
 	local dragStart, startPos
 
@@ -79,17 +75,22 @@ local function setupDragging(mainFrame)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			isDragging = true
 			dragStart = input.Position
-			startPos = mainFrame.Position
+			startPos = mainFrame.Position  -- This should work if mainFrame is valid
 		end
 	end
 
 	local function onInputChanged(input)
 		if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 			local delta = input.Position - dragStart
-			mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			-- Check if startPos is valid before indexing
+			if startPos then
+				mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			else
+				warn("startPos is nil!")
+			end
 		end
 	end
-	
+
 	local function onInputEnded(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			isDragging = false
@@ -100,6 +101,7 @@ local function setupDragging(mainFrame)
 	UserInputService.InputChanged:Connect(onInputChanged)
 	UserInputService.InputEnded:Connect(onInputEnded)
 end
+
 
 -- Create Button in GUI
 local function createButton(mainFrame, labelText, positionY, callback)
@@ -115,15 +117,10 @@ local function createButton(mainFrame, labelText, positionY, callback)
 	button.AutoButtonColor = false
 
 	button.MouseButton1Click:Connect(function()
+		debugLog(labelText .. " button clicked.")
 		callback()
 	end)
 end
-
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = game.Players.LocalPlayer
-
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = game.Players.LocalPlayer
 
 -- Create Slider in GUI
 local function createSlider(mainFrame, labelText, positionY, minValue, maxValue, defaultValue, setter)
@@ -155,6 +152,7 @@ local function createSlider(mainFrame, labelText, positionY, minValue, maxValue,
 		sliderBar.Size = UDim2.new((value - minValue) / (maxValue - minValue), 0, 1, 0)
 		label.Text = labelText .. ": " .. string.format("%.2f", value)
 		setter(value)
+		debugLog(labelText .. " value set to " .. value)
 	end
 
 	-- Handle mouse button down event
@@ -176,8 +174,6 @@ local function createSlider(mainFrame, labelText, positionY, minValue, maxValue,
 		end
 	end)
 end
-
-
 
 -- Create Dropdown Menu in GUI
 local function createDropdown(mainFrame, labelText, positionY, options, setter)
@@ -213,11 +209,13 @@ local function createDropdown(mainFrame, labelText, positionY, options, setter)
 			dropdown.Text = option
 			setter(option)
 			optionList.Visible = false
+			debugLog(labelText .. " option selected: " .. option)
 		end)
 	end
 
 	dropdown.MouseButton1Click:Connect(function()
 		optionList.Visible = not optionList.Visible
+		debugLog(labelText .. " dropdown toggled.")
 	end)
 end
 
@@ -232,9 +230,11 @@ local function notify(message)
 	notification.TextSize = 20
 	notification.BorderSizePixel = 0
 
+	debugLog("Notification: " .. message)
 	wait(2)  -- Display for 2 seconds
 	notification:Destroy()
 end
+
 
 -- Skeleton ESP Class Definition
 local SkeletonESP = {}
@@ -402,11 +402,17 @@ createButton(mainFrame, "Toggle ESP", 50, function() espEnabled = not espEnabled
 createButton(mainFrame, "Toggle Aim Assist", 100, function() aimAssistEnabled = not aimAssistEnabled end)
 createButton(mainFrame, "Toggle Silent Aim", 150, function() silentAimEnabled = not silentAimEnabled end)
 createSlider(mainFrame, "Aim Speed", 200, 0.01, 1, aimSpeed, function(value) aimSpeed = value end)
-createDropdown(mainFrame, "Target Method", 250, {"Nearest", "Lowest Health", "Closest in FOV"}, function(value) targetMethod = value end)
+	createDropdown(mainFrame, "Target Method", 250, {"Nearest", "Lowest Health", "Closest in FOV"}, function(value) targetMethod = value end)
+	
+	local player = game.Players.LocalPlayer -- Make sure player is defined
 
--- Cleanup on exit
-game:BindToClose(function()
-	for _, espInstance in pairs(espInstances) do
-		espInstance:destroy()
-	end
-end)
+	-- Listen for AncestryChanged event for cleanup when player is removed
+	player.AncestryChanged:Connect(function()
+		if not player.Parent then  -- Check if player is removed from the game
+			for _, espInstance in pairs(espInstances) do
+				if espInstance and espInstance.Destroy then
+					espInstance:destroy()
+				end
+			end
+		end
+	end)
