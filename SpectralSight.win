@@ -18,8 +18,6 @@ local MAX_DISTANCE = 4000
 -- Default Color Settings
 local colorSettings = {
     ally = Color3.new(0, 1, 0), -- Green for allies
-    enemy = Color3.new(1, 0, 0), -- Red for enemies
-    neutral = Color3.new(1, 1, 0), -- Yellow for neutral players
     healthLow = Color3.new(1, 0, 0), -- Red for low health
     healthHigh = Color3.new(0, 1, 0) -- Green for healthy
 }
