@@ -1,3 +1,6 @@
+-- SpectralSight
+-- Creates A box around Players, Displays players names, and Makes skeletons
+
 local settings = {
     Color = Color3.fromRGB(255, 0, 0),
     Size = 15,
