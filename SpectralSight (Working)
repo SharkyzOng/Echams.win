@@ -278,7 +278,7 @@ end
 game:GetService("Players").PlayerAdded:Connect(function(newplr)
     coroutine.wrap(Main)(newplr)
 end)
-local Library = loadstring(game:httpget(https://raw.githubusercontent.com/SharkyzOng/Echams.win/refs/heads/main/SkeletonLua%20extra))()
+local Library = loadstring(game:httpget("https://raw.githubusercontent.com/SharkyzOng/Echams.win/refs/heads/main/SkeletonLua%20extra"))()
 
 local Skeletons = {}
 for _, Player in next, game.Players:GetChildren() do
